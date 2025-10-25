@@ -14,10 +14,10 @@ export const load = async ({ locals, fetch }) => {
     // Site configuration would need to come from WordPress options or a specific page
     configuration: null,
     // careers: await fetchCareers({ version, fetch }),
-    awards: await fetchAwards({ version, fetch }),
-    awardsTypes: await fetchAwardsTypes({ version, fetch }),
-    teamMembers: await fetchTeamMembers({ version, fetch }),
-    homePosts: await fetchHomeBlogPosts({ version, fetch }),
+    // awards: await fetchAwards({ version, fetch }),
+    // awardsTypes: await fetchAwardsTypes({ version, fetch }),
+    // teamMembers: await fetchTeamMembers({ version, fetch }),
+    // homePosts: await fetchHomeBlogPosts({ version, fetch }),
     version
   };
 };
