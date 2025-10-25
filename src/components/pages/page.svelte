@@ -15,9 +15,9 @@
   export let blogIndex: PageResult['blogIndex'] = undefined;
   export let projectsIndex: PageResult['projectsIndex'] = undefined;
 
-  // Extract content blocks from ACF
-  $: contentBlocks = story.acf?.content_blocks || [];
-  $: pageType = story.acf?.page_type || 'default';
+  // Extract content blocks from ACF (normalized blocks)
+  $: contentBlocks = story.acf?.content_blocks || story.content?.body || story.content?.content_blocks || [];
+  $: pageType = story.acf?.page_type || story.content?.page_type || 'default';
 </script>
 
 {#if contentBlocks.length}

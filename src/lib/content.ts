@@ -57,6 +57,7 @@ export const AWARDS_PARAMS = {
  */
 async function fetchFromWordPress<T>(
   endpoint: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   params?: Record<string, any>,
   customFetch?: typeof fetch
 ): Promise<T> {
@@ -135,7 +136,8 @@ export async function fetchBlogPosts(
     fetch?: typeof fetch;
   }
 ): Promise<WordPressBlogPost[]> {
-  const wpParams: any = {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const wpParams: Record<string, any> = {
     ...BLOG_PARAMS,
     per_page: params?.per_page || BLOG_PARAMS.per_page,
     page: params?.page || 1
@@ -191,7 +193,8 @@ export async function fetchProjects(
     fetch?: typeof fetch;
   }
 ): Promise<WordPressProject[]> {
-  const wpParams: any = {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const wpParams: Record<string, any> = {
     ...PROJECT_PARAMS,
     per_page: params?.per_page || PROJECT_PARAMS.per_page
   };
@@ -347,12 +350,14 @@ export async function fetchHandbookPage(
  * Generic search/fetch function for entries
  * Used by handbook search and other search functionality
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function fetchEntries<T = any>(
   options: { version?: 'draft' | 'published'; fetch?: typeof fetch } = {},
   searchParams: { starts_with?: string; search_term?: string } = {}
 ): Promise<T[]> {
   // For WordPress, we'll use the handbook endpoint with search parameter
-  const wpParams: any = {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const wpParams: Record<string, any> = {
     per_page: 100,
     _embed: true
   };
@@ -366,6 +371,7 @@ export async function fetchEntries<T = any>(
   // You can extend this to support other content types
   const endpoint = searchParams.starts_with === 'handbook' ? '/handbook' : '/pages';
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const results = await fetchFromWordPress<any[]>(endpoint, wpParams, options.fetch);
 
   // Normalize results to have Storyblok-like structure for compatibility
@@ -389,7 +395,8 @@ export async function fetchAwards(
  * Fetch award types (for WordPress, we don't have separate types)
  */
 export async function fetchAwardsTypes(
-  options: { version?: 'draft' | 'published'; fetch?: typeof fetch } = {}
+  _options: { version?: 'draft' | 'published'; fetch?: typeof fetch } = {}
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): Promise<any[]> {
   // In WordPress, we don't have separate award types
   // Return empty array for compatibility
@@ -431,6 +438,7 @@ export async function fetchHomeBlogPosts(
 /**
  * Helper function to get image URL from WordPress media
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function getImageUrl(media: any, size: 'thumbnail' | 'medium' | 'large' | 'full' = 'full'): string {
   if (!media) return '';
 
@@ -455,6 +463,7 @@ export function getImageUrl(media: any, size: 'thumbnail' | 'medium' | 'large' |
 /**
  * Helper to get featured image URL
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function getFeaturedImageUrl(post: any, size: 'thumbnail' | 'medium' | 'large' | 'full' = 'full'): string {
   // Check embedded media
   if (post._embedded?.['wp:featuredmedia']?.[0]) {
@@ -485,6 +494,7 @@ export function stripHtml(html: string): string {
 /**
  * Helper to determine content component/type
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function getContentComponent(post: any): string {
   // Map WordPress post types to component names
   const typeMap: Record<string, string> = {
@@ -503,17 +513,86 @@ export function getContentComponent(post: any): string {
 }
 
 /**
+ * Normalize WordPress content blocks
+ * Converts acf_fc_layout to component and handles nested blocks
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function normalizeContentBlocks(blocks: any[]): any[] {
+  if (!blocks || !Array.isArray(blocks)) {
+    return [];
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return blocks.map((block: any) => {
+    const normalized = { ...block };
+
+    // Convert acf_fc_layout to component (WordPress ACF uses acf_fc_layout)
+    if (block.acf_fc_layout) {
+      // Convert underscores to hyphens for component names
+      normalized.component = block.acf_fc_layout.replace(/_/g, '-');
+    }
+
+    // Recursively normalize nested blocks
+    if (block.content_blocks) {
+      normalized.content_blocks = normalizeContentBlocks(block.content_blocks);
+    }
+
+    // Handle two-columns block
+    if (block.left_column) {
+      normalized.left_column = normalizeContentBlocks(block.left_column);
+    }
+    if (block.right_column) {
+      normalized.right_column = normalizeContentBlocks(block.right_column);
+    }
+
+    // Handle box block
+    if (block.blocks) {
+      normalized.blocks = normalizeContentBlocks(block.blocks);
+    }
+
+    return normalized;
+  });
+}
+
+/**
  * Convert WordPress post to story-like structure for compatibility
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function normalizeWordPressPost(post: any) {
+  // Normalize content blocks from ACF
+  const contentBlocks = normalizeContentBlocks(post.acf?.content_blocks || []);
+
+  // Determine the content component type
+  const component = getContentComponent(post);
+
+  // For blog posts, projects, careers, etc., body should be the rendered HTML content
+  // For pages, body should be the flexible content blocks (if available)
+  let body;
+  if (component === 'page' && contentBlocks.length > 0) {
+    // Pages use flexible content blocks
+    body = contentBlocks;
+  } else if (post.content?.rendered) {
+    // Blog posts, projects, etc. use WordPress editor content
+    body = post.content.rendered;
+  } else {
+    // Fallback to content blocks if available
+    body = contentBlocks;
+  }
+
   return {
     ...post,
     name: post.title?.rendered || '',
     full_slug: post.slug,
     content: {
-      component: getContentComponent(post),
-      body: post.acf?.content_blocks || [],
-      ...post.acf
+      component,
+      body,
+      ...post.acf,
+      content_blocks: contentBlocks // Also provide as content_blocks for direct access
+    },
+    // Make ACF fields directly available with normalized blocks
+    acf: {
+      ...post.acf,
+      content_blocks: contentBlocks
     },
     first_published_at: post.date,
     published_at: post.date,
@@ -527,6 +606,7 @@ export function normalizeWordPressPost(post: any) {
  * PageResult type for compatibility
  */
 export type PageResult = {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   story: any;
   index?: {
     posts?: WordPressBlogPost[];
@@ -545,6 +625,7 @@ export type PageResult = {
  * Build a PageResult object from WordPress data
  */
 export async function buildPageResult(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   story: any,
   options: {
     includePosts?: boolean;
@@ -561,7 +642,8 @@ export async function buildPageResult(
   };
 
   // Build index data
-  const index: any = {};
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const index: Record<string, any> = {};
 
   if (options.includePosts) {
     index.posts = await fetchBlogPosts({ per_page: 10, fetch: options.fetch });
@@ -589,7 +671,8 @@ export async function buildPageResult(
 
   // Build related data
   if (options.includeRelated && story.id) {
-    const related: any = {};
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const related: Record<string, any> = {};
 
     if (story.type === 'post' || story.type === 'blog_post') {
       related.posts = await getRelatedBlogPosts(story.id, 3);
